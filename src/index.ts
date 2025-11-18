@@ -1,12 +1,13 @@
-import { Loader } from '@googlemaps/js-api-loader';
+import { loadGoogleMaps } from './services/mapsLoader';
+import { computeAntipode, computeViewportAntipode } from './utils/antipode';
+import { validateLatLng } from './utils/validation';
+import { updateOtherMap } from './utils/mapSync';
 
-const loader = new Loader({
-    apiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string,
-    version: "weekly",
-    libraries: ["places", "marker"]
-});
+// Initial view coordinates (Santiago, Chile)
+const INITIAL_COORDINATES = { lat: -33.42651995258547, lng: -70.66558906755355 };
+const DEFAULT_ZOOM = 12;
 
-loader.load().then(() => {
+loadGoogleMaps().then(() => {
     initMap();
 }).catch(e => {
     console.error('Error loading Google Maps API:', e);
@@ -38,10 +39,15 @@ loader.load().then(() => {
  *   zoom_changed  👈 `fitBounds` triggers this
  **/
 
-// Initialize and add the map
+/**
+ * Initializes the dual synchronized map interface.
+ *
+ * Creates two Google Maps instances that display a location and its antipode.
+ * The maps are synchronized so that panning or zooming one map automatically
+ * updates the other to show the corresponding antipodal view.
+ */
 function initMap(): void {
-    // Specify the initial coordinates
-    const coordinates1 = new google.maps.LatLng({ lat: -33.42651995258547, lng: -70.66558906755355 }); // Santiago, Chile
+    const coordinates1 = new google.maps.LatLng(INITIAL_COORDINATES);
     const coordinates2 = computeAntipode(coordinates1);
 
     // Create a map centered at the specified coordinates
@@ -50,29 +56,29 @@ function initMap(): void {
     const input = document.getElementById('pac-input');
 
     if (!map1El || !map2El) {
-        throw Error('Map elements not found.');
+        throw new Error('Map elements not found.');
     }
 
     if (!input || !(input instanceof HTMLInputElement)) {
-        throw Error('Input element not found.');
+        throw new Error('Input element not found.');
     }
 
     const map1 = new google.maps.Map(map1El, {
-        zoom: 12, // Adjust the zoom level as needed
+        zoom: DEFAULT_ZOOM,
         center: coordinates1,
         mapId: 'map1'
     });
-    // Create a marker for each place
+    // Create initial marker at starting location
     let marker1 = new google.maps.marker.AdvancedMarkerElement({
         map: map1,
         position: coordinates1
     });
     const map2 = new google.maps.Map(map2El, {
-        zoom: 12, // Adjust the zoom level as needed
+        zoom: DEFAULT_ZOOM,
         center: coordinates2,
         mapId: 'map2'
     });
-    // Create a marker for each place
+    // Create initial marker at antipode location
     let marker2 = new google.maps.marker.AdvancedMarkerElement({
         map: map2,
         position: coordinates2
@@ -91,131 +97,45 @@ function initMap(): void {
     map2.addListener('zoom_changed', () => updateOtherMap(map2, map1));
 
     // Listen for the event fired when the user selects a prediction and retrieve more details for that place
-    searchBox.addListener('places_changed', function () {
+    searchBox.addListener('places_changed', () => {
         const places = searchBox.getPlaces();
         if (!places || places.length === 0) {
             return;
         }
+
+        // Clear existing markers
         marker1.map = null;
         marker2.map = null;
-        // For each place, get the icon, name, and location
-        const bounds = new google.maps.LatLngBounds();
-        places.forEach(function (place) {
-            if (!place.geometry) {
-                console.log('Returned place contains no geometry');
-                return;
-            }
-            // Create a marker for each place
-            const position = place.geometry.location;
-            validateLatLng(position);
-            marker1 = new google.maps.marker.AdvancedMarkerElement({
-                map: map1,
-                title: place.name,
-                position
-            });
-            marker2 = new google.maps.marker.AdvancedMarkerElement({
-                map: map2,
-                position: computeAntipode(position)
-            });
-            if (place.geometry.viewport) {
-                // Only geocodes have viewport
-                bounds.union(place.geometry.viewport);
-            } else if (place.geometry.location) {
-                bounds.extend(place.geometry.location);
-            }
+
+        // Use the first place from search results
+        const place = places[0];
+        if (!place.geometry) {
+            console.log('Returned place contains no geometry');
+            return;
+        }
+
+        // Create markers at the location and its antipode
+        const position = place.geometry.location;
+        validateLatLng(position);
+        marker1 = new google.maps.marker.AdvancedMarkerElement({
+            map: map1,
+            title: place.name,
+            position
         });
-        map1.fitBounds(bounds);
-        if (places[0].geometry?.viewport) {
-            map2.fitBounds(computeViewportAntipode(places[0].geometry.viewport));
+        marker2 = new google.maps.marker.AdvancedMarkerElement({
+            map: map2,
+            position: computeAntipode(position)
+        });
+
+        // Update map bounds to show the selected location
+        if (place.geometry.viewport) {
+            // Only geocodes have viewport
+            map1.fitBounds(place.geometry.viewport);
+            map2.fitBounds(computeViewportAntipode(place.geometry.viewport));
+        } else if (place.geometry.location) {
+            // For places without viewport, center on the location
+            map1.setCenter(place.geometry.location);
+            map2.setCenter(computeAntipode(place.geometry.location));
         }
     });
-
-    // --------------------------------------------------
-    // Helpers
-    // --------------------------------------------------
-
-    function computeAntipode(latLng: google.maps.LatLng): google.maps.LatLng {
-        const latitude = latLng.lat();
-        const longitude = latLng.lng();
-
-        // Validate input
-        if (latitude < -90 || latitude > 90) {
-            throw Error(`Invalid latitude ${latitude}.`);
-        }
-        if (longitude < -180 || longitude > 180) {
-            throw Error(`Invalid longitude ${longitude}.`);
-        }
-
-        // Compute antipode
-        return new google.maps.LatLng(
-            -latitude,
-            longitude < 0 ? 180 + longitude : longitude - 180,
-        );
-    }
-
-    function computeViewportAntipode(
-        viewport: google.maps.LatLngBounds,
-    ): google.maps.LatLngBounds {
-        // Validate input
-        if (!viewport) {
-            throw Error('Invalid viewport.');
-        }
-
-        //  INPUT
-        //
-        //   A + - - - - - - - - - + B  (NE) 15,15
-        //     |                   |
-        //     |                   |
-        //   C + - - - - - - - - - + D
-        //  (SW) (5,5)
-        //
-        //
-        //  ANTIPODE perspective
-        //
-        // (-5, -175)
-        //   C + - - - - - - - - - + D  (NE) (-5, -175)
-        //     |                   |
-        //     |                   |
-        //   A + - - - - - - - - - + B  (-15, -165)
-        //   (SW) (-15,-175)
-        //
-
-        const { south, east, west, north } = viewport.toJSON();
-        const a = new google.maps.LatLng(north, west);
-        const d = new google.maps.LatLng(south, east);
-
-        // Construct antipode viewport
-        const antipodeNorthEast = computeAntipode(d);
-        const antipodeSouthWest = computeAntipode(a);
-
-        return new google.maps.LatLngBounds(antipodeSouthWest, antipodeNorthEast);
-    }
-
-    function updateOtherMap(
-        currentMap: google.maps.Map,
-        otherMap: google.maps.Map,
-    ) {
-        const bounds = currentMap.getBounds();
-        validateBounds(bounds);
-        const viewportAntipode = computeViewportAntipode(bounds);
-        otherMap.fitBounds(viewportAntipode, 0);
-    }
-
-    // Validation
-
-    function validateBounds(
-        bounds: google.maps.LatLngBounds | undefined,
-    ): asserts bounds is google.maps.LatLngBounds {
-        if (!bounds) {
-            throw Error('Invalid bounds');
-        }
-    }
-
-    function validateLatLng(
-        latLng: google.maps.LatLng | undefined,
-    ): asserts latLng is google.maps.LatLng {
-        if (!latLng) {
-            throw Error('Invalid LatLng');
-        }
-    }
 }
