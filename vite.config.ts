@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react-swc';
 import EnvironmentPlugin from 'vite-plugin-environment';
 
 export default defineConfig({
@@ -6,9 +7,10 @@ export default defineConfig({
     outDir: 'dist',
   },
   server: {
-    open: '/index.html', // Changed from 'antipode.html' to 'index.html'
+    open: '/index.html',
   },
   plugins: [
+    react(),
     EnvironmentPlugin('all'), // This will make environment variables available
   ],
 });
