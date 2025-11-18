@@ -23,7 +23,4 @@ Search, pan, and zoom on either map and see the antipode on the other.
 - [bdav](https://github.com/bdav)
 
 
-## License
-
-[MIT](https://choosealicense.com/licenses/mit/)
 
