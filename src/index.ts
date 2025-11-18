@@ -14,32 +14,6 @@ loadGoogleMaps().then(() => {
 });
 
 /**
- * --------------------------------------------------
- * Google Maps Events as of JavaScript API v3
- * --------------------------------------------------
- *   bounds_changed 👈 `fitBounds` triggers this
- *   center_changed
- *   click
- *   contextmenu
- *   dblclick
- *   drag 👈 `fitBounds` does _NOT_ trigger this
- *   dragend
- *   dragstart
- *   heading_changed
- *   idle
- *   maptypeid_changed
- *   mousemove
- *   mouseout
- *   mouseover
- *   projection_changed
- *   resize
- *   rightclick
- *   tilesloaded
- *   tilt_changed
- *   zoom_changed  👈 `fitBounds` triggers this
- **/
-
-/**
  * Initializes the dual synchronized map interface.
  *
  * Creates two Google Maps instances that display a location and its antipode.
