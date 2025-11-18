@@ -112,99 +112,84 @@ function initMap(): void {
     map2.addListener('center_changed', syncMap2ToMap1);
     map2.addListener('zoom_changed', syncMap2ToMap1);
 
-    // Detect fullscreen changes and update SearchBox bounds
-    map1.addListener('bounds_changed', () => {
-        const mapDiv = map1.getDiv().firstChild as HTMLElement;
-        if (mapDiv) {
-            const isFullscreen = mapDiv.clientHeight === window.innerHeight &&
-                                 mapDiv.clientWidth === window.innerWidth;
-            map1.setOptions({ zoomControl: isFullscreen });
-
-            // Move autocomplete dropdown into/out of fullscreen container
-            if (isFullscreen) {
-                setTimeout(() => {
-                    const pacContainers = document.querySelectorAll('.pac-container');
-                    pacContainers.forEach(container => {
-                        if (container instanceof HTMLElement) {
-                            // Append to the map's inner div that has overflow: auto
-                            mapDiv.appendChild(container);
-                            // Ensure dropdown is visible and positioned correctly
-                            container.style.position = 'absolute';
-                            container.style.zIndex = '2147483647';
-                            container.style.display = 'block';
-                        }
-                    });
-                }, 100);
-            } else {
-                setTimeout(() => {
-                    const pacContainers = document.querySelectorAll('.pac-container');
-                    pacContainers.forEach(container => {
-                        if (container instanceof HTMLElement && container.parentElement === mapDiv) {
-                            document.body.appendChild(container);
-                        }
-                    });
-                }, 100);
-            }
-        }
-
-        // Update SearchBox bounds for map1
-        const bounds = map1.getBounds();
-        if (bounds) {
-            searchBox1.setBounds(bounds);
-        }
-    });
-
-    map2.addListener('bounds_changed', () => {
-        const mapDiv = map2.getDiv().firstChild as HTMLElement;
-        if (mapDiv) {
-            const isFullscreen = mapDiv.clientHeight === window.innerHeight &&
-                                 mapDiv.clientWidth === window.innerWidth;
-            map2.setOptions({ mapTypeControl: isFullscreen });
-
-            // Show search box 2 on map2 when fullscreen, hide when not
-            if (isFullscreen) {
-                const currentControls = map2.controls[google.maps.ControlPosition.TOP_LEFT];
-                if (currentControls.getArray().indexOf(input2) === -1) {
-                    currentControls.push(input2);
+    // Helper function to handle autocomplete dropdown movement
+    const moveDropdownToFullscreen = (mapDiv: HTMLElement) => {
+        setTimeout(() => {
+            const pacContainers = document.querySelectorAll('.pac-container');
+            pacContainers.forEach(container => {
+                if (container instanceof HTMLElement) {
+                    // Append to the map's inner div that has overflow: auto
+                    mapDiv.appendChild(container);
+                    // Ensure dropdown is visible and positioned correctly
+                    container.style.position = 'absolute';
+                    container.style.zIndex = '2147483647';
+                    container.style.display = 'block';
                 }
-                // Move autocomplete dropdown into fullscreen container
-                setTimeout(() => {
-                    const pacContainers = document.querySelectorAll('.pac-container');
-                    pacContainers.forEach(container => {
-                        if (container instanceof HTMLElement) {
-                            // Append to the map's inner div that has overflow: auto
-                            mapDiv.appendChild(container);
-                            // Ensure dropdown is visible and positioned correctly
-                            container.style.position = 'absolute';
-                            container.style.zIndex = '2147483647';
-                            container.style.display = 'block';
-                        }
-                    });
-                }, 100);
-            } else {
-                const currentControls = map2.controls[google.maps.ControlPosition.TOP_LEFT];
-                const index = currentControls.getArray().indexOf(input2);
-                if (index !== -1) {
-                    currentControls.removeAt(index);
-                }
-                // Move autocomplete dropdown back to body
-                setTimeout(() => {
-                    const pacContainers = document.querySelectorAll('.pac-container');
-                    pacContainers.forEach(container => {
-                        if (container instanceof HTMLElement && container.parentElement === mapDiv) {
-                            document.body.appendChild(container);
-                        }
-                    });
-                }, 100);
-            }
-        }
+            });
+        }, 100);
+    };
 
-        // Update SearchBox bounds for map2
-        const bounds = map2.getBounds();
-        if (bounds) {
-            searchBox2.setBounds(bounds);
-        }
-    });
+    const moveDropdownToBody = (mapDiv: HTMLElement) => {
+        setTimeout(() => {
+            const pacContainers = document.querySelectorAll('.pac-container');
+            pacContainers.forEach(container => {
+                if (container instanceof HTMLElement && container.parentElement === mapDiv) {
+                    document.body.appendChild(container);
+                }
+            });
+        }, 100);
+    };
+
+    // Helper function to handle fullscreen changes and bounds updates
+    const createBoundsChangedListener = (
+        map: google.maps.Map,
+        searchBox: google.maps.places.SearchBox,
+        controlToToggle: 'zoomControl' | 'mapTypeControl',
+        searchInput?: HTMLInputElement
+    ) => {
+        return () => {
+            const mapDiv = map.getDiv().firstChild as HTMLElement;
+            if (mapDiv) {
+                const isFullscreen = mapDiv.clientHeight === window.innerHeight &&
+                    mapDiv.clientWidth === window.innerWidth;
+
+                // Toggle the specified control based on fullscreen state
+                map.setOptions({ [controlToToggle]: isFullscreen });
+
+                // Show/hide search input if provided (for map2)
+                if (searchInput) {
+                    const currentControls = map.controls[google.maps.ControlPosition.TOP_LEFT];
+                    if (isFullscreen) {
+                        if (currentControls.getArray().indexOf(searchInput) === -1) {
+                            currentControls.push(searchInput);
+                        }
+                    } else {
+                        const index = currentControls.getArray().indexOf(searchInput);
+                        if (index !== -1) {
+                            currentControls.removeAt(index);
+                        }
+                    }
+                }
+
+                // Move autocomplete dropdown into/out of fullscreen container
+                if (isFullscreen) {
+                    moveDropdownToFullscreen(mapDiv);
+                } else {
+                    moveDropdownToBody(mapDiv);
+                }
+            }
+
+            // Update SearchBox bounds
+            const bounds = map.getBounds();
+            if (bounds) {
+                searchBox.setBounds(bounds);
+            }
+        };
+    };
+
+    // Detect fullscreen changes and update SearchBox bounds for both maps
+    map1.addListener('bounds_changed', createBoundsChangedListener(map1, searchBox1, 'zoomControl'));
+    map2.addListener('bounds_changed', createBoundsChangedListener(map2, searchBox2, 'mapTypeControl', input2));
 
     // Sync map type (satellite/map/terrain) bidirectionally
     // Both maps have the control (visible when fullscreen or based on position)
