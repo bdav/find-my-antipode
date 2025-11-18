@@ -45,7 +45,10 @@ function initMap(): void {
         zoom: DEFAULT_ZOOM,
         center: coordinates1,
         mapId: 'map1',
-        disableDefaultUI: true  // Hide controls on top map
+        // Top map: disable all default UI, then enable only what we want
+        disableDefaultUI: true,
+        mapTypeControl: true,
+        fullscreenControl: true
     });
     // Create initial marker at starting location
     let marker1 = new google.maps.marker.AdvancedMarkerElement({
@@ -55,7 +58,10 @@ function initMap(): void {
     const map2 = new google.maps.Map(map2El, {
         zoom: DEFAULT_ZOOM,
         center: coordinates2,
-        mapId: 'map2'
+        mapId: 'map2',
+        // Bottom map: disable all default UI, then enable only zoom control
+        disableDefaultUI: true,
+        zoomControl: true
     });
     // Create initial marker at antipode location
     let marker2 = new google.maps.marker.AdvancedMarkerElement({
