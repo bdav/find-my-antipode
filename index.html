@@ -16,12 +16,73 @@
             height: 50vh;
             width: 100%;
         }
+
+        /* Position search inputs off-screen initially - Google Maps will position them when added to controls */
+        #pac-input-1,
+        #pac-input-2 {
+            position: absolute;
+            left: -9999px;
+        }
+
+        /* Style search boxes to match Google Maps controls */
+        .controls {
+            background-color: #fff;
+            border: 0;
+            border-radius: 2px;
+            box-shadow: 0 1px 4px -1px rgba(0, 0, 0, 0.3);
+            margin: 10px;
+            padding: 0 11px 0 13px;
+            height: 40px;
+            font-family: Roboto, Arial, sans-serif;
+            font-size: 15px;
+            font-weight: 300;
+            outline: none;
+            text-overflow: ellipsis;
+            width: 250px;
+        }
+
+        .controls:focus {
+            border-color: #4d90fe;
+            box-shadow: 0 1px 4px -1px rgba(0, 0, 0, 0.3), 0 0 0 2px rgba(77, 144, 254, 0.2);
+        }
+
+        /* Ensure autocomplete dropdown appears above fullscreen maps */
+        .pac-container {
+            z-index: 10000 !important;
+            background-color: #fff;
+        }
+
+        /* Hide "powered by Google" logo in autocomplete */
+        .pac-logo::after,
+        .hdpi.pac-logo::after {
+            display: none !important;
+        }
+
+        /* Make autocomplete dropdown visible in fullscreen mode */
+        #map1 .pac-container,
+        #map2 .pac-container {
+            position: absolute !important;
+            z-index: 2147483647 !important;
+            background-color: #fff !important;
+            display: block !important;
+        }
+
+        :fullscreen .pac-container,
+        :-webkit-full-screen .pac-container,
+        :-moz-full-screen .pac-container,
+        :-ms-fullscreen .pac-container {
+            z-index: 2147483647 !important;
+            position: absolute !important;
+            background-color: #fff !important;
+            display: block !important;
+        }
     </style>
 </head>
 
 <body>
-    <!-- Add a search box -->
-    <input id="pac-input" class="controls" type="text" placeholder="Search Box">
+    <!-- Search boxes for each map -->
+    <input id="pac-input-1" class="controls" type="text" placeholder="Search Box">
+    <input id="pac-input-2" class="controls" type="text" placeholder="Search Box">
     <!-- Create a div to hold the map -->
     <div id="map1"></div>
     <div id="map2"></div>
