@@ -45,7 +45,7 @@ function initMap(): void {
         zoom: DEFAULT_ZOOM,
         center: coordinates1,
         mapId: 'map1',
-        // Top map: show map type and fullscreen controls by default
+        // Top map: zoom hidden by default, shows in fullscreen
         disableDefaultUI: true,
         zoomControl: false,
         mapTypeControl: true,
@@ -60,7 +60,7 @@ function initMap(): void {
         zoom: DEFAULT_ZOOM,
         center: coordinates2,
         mapId: 'map2',
-        // Bottom map: show zoom and fullscreen controls by default
+        // Bottom map: map type hidden by default, shows in fullscreen
         disableDefaultUI: true,
         zoomControl: true,
         mapTypeControl: false,
@@ -104,17 +104,23 @@ function initMap(): void {
     map2.addListener('center_changed', syncMap2ToMap1);
     map2.addListener('zoom_changed', syncMap2ToMap1);
 
-    // Toggle controls based on fullscreen state
-    // Top map: add zoom control when fullscreen
-    document.addEventListener('fullscreenchange', () => {
-        const isMap1Fullscreen = document.fullscreenElement === map1El;
-        const isMap2Fullscreen = document.fullscreenElement === map2El;
+    // Detect fullscreen changes by comparing map size to window size
+    map1.addListener('bounds_changed', () => {
+        const mapDiv = map1.getDiv().firstChild as HTMLElement;
+        if (mapDiv) {
+            const isFullscreen = mapDiv.clientHeight === window.innerHeight &&
+                                 mapDiv.clientWidth === window.innerWidth;
+            map1.setOptions({ zoomControl: isFullscreen });
+        }
+    });
 
-        // Top map gets zoom control in fullscreen
-        map1.setOptions({ zoomControl: isMap1Fullscreen });
-
-        // Bottom map gets map type control in fullscreen
-        map2.setOptions({ mapTypeControl: isMap2Fullscreen });
+    map2.addListener('bounds_changed', () => {
+        const mapDiv = map2.getDiv().firstChild as HTMLElement;
+        if (mapDiv) {
+            const isFullscreen = mapDiv.clientHeight === window.innerHeight &&
+                                 mapDiv.clientWidth === window.innerWidth;
+            map2.setOptions({ mapTypeControl: isFullscreen });
+        }
     });
 
     // Sync map type (satellite/map/terrain) bidirectionally
