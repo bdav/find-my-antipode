@@ -45,8 +45,9 @@ function initMap(): void {
         zoom: DEFAULT_ZOOM,
         center: coordinates1,
         mapId: 'map1',
-        // Top map: disable all default UI, then enable only what we want
+        // Top map: show map type and fullscreen controls by default
         disableDefaultUI: true,
+        zoomControl: false,
         mapTypeControl: true,
         fullscreenControl: true
     });
@@ -59,9 +60,11 @@ function initMap(): void {
         zoom: DEFAULT_ZOOM,
         center: coordinates2,
         mapId: 'map2',
-        // Bottom map: disable all default UI, then enable only zoom control
+        // Bottom map: show zoom and fullscreen controls by default
         disableDefaultUI: true,
-        zoomControl: true
+        zoomControl: true,
+        mapTypeControl: false,
+        fullscreenControl: true
     });
     // Create initial marker at antipode location
     let marker2 = new google.maps.marker.AdvancedMarkerElement({
@@ -92,14 +95,49 @@ function initMap(): void {
         isUpdatingMap1 = false;
     };
 
-    // Listen to drag (mouse panning), zoom, and center changes (pan controls)
+    // Listen to drag, center, and zoom changes on both maps
     map1.addListener('drag', syncMap1ToMap2);
-    map1.addListener('zoom_changed', syncMap1ToMap2);
     map1.addListener('center_changed', syncMap1ToMap2);
+    map1.addListener('zoom_changed', syncMap1ToMap2);
 
     map2.addListener('drag', syncMap2ToMap1);
-    map2.addListener('zoom_changed', syncMap2ToMap1);
     map2.addListener('center_changed', syncMap2ToMap1);
+    map2.addListener('zoom_changed', syncMap2ToMap1);
+
+    // Toggle controls based on fullscreen state
+    // Top map: add zoom control when fullscreen
+    document.addEventListener('fullscreenchange', () => {
+        const isMap1Fullscreen = document.fullscreenElement === map1El;
+        const isMap2Fullscreen = document.fullscreenElement === map2El;
+
+        // Top map gets zoom control in fullscreen
+        map1.setOptions({ zoomControl: isMap1Fullscreen });
+
+        // Bottom map gets map type control in fullscreen
+        map2.setOptions({ mapTypeControl: isMap2Fullscreen });
+    });
+
+    // Sync map type (satellite/map/terrain) bidirectionally
+    // Both maps have the control (visible when fullscreen or based on position)
+    map1.addListener('maptypeid_changed', () => {
+        if (isUpdatingMap1) return;
+        const mapTypeId = map1.getMapTypeId();
+        if (mapTypeId) {
+            isUpdatingMap2 = true;
+            map2.setMapTypeId(mapTypeId);
+            isUpdatingMap2 = false;
+        }
+    });
+
+    map2.addListener('maptypeid_changed', () => {
+        if (isUpdatingMap2) return;
+        const mapTypeId = map2.getMapTypeId();
+        if (mapTypeId) {
+            isUpdatingMap1 = true;
+            map1.setMapTypeId(mapTypeId);
+            isUpdatingMap1 = false;
+        }
+    });
 
     // Listen for the event fired when the user selects a prediction and retrieve more details for that place
     searchBox.addListener('places_changed', () => {
