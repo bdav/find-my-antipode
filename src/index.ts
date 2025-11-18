@@ -24,6 +24,10 @@ function initMap(): void {
     const coordinates1 = new google.maps.LatLng(INITIAL_COORDINATES);
     const coordinates2 = computeAntipode(coordinates1);
 
+    // Flags to prevent infinite recursion during sync
+    let isUpdatingMap1 = false;
+    let isUpdatingMap2 = false;
+
     // Create a map centered at the specified coordinates
     const map1El = document.getElementById('map1');
     const map2El = document.getElementById('map2');
@@ -40,7 +44,8 @@ function initMap(): void {
     const map1 = new google.maps.Map(map1El, {
         zoom: DEFAULT_ZOOM,
         center: coordinates1,
-        mapId: 'map1'
+        mapId: 'map1',
+        disableDefaultUI: true  // Hide controls on top map
     });
     // Create initial marker at starting location
     let marker1 = new google.maps.marker.AdvancedMarkerElement({
@@ -65,10 +70,30 @@ function initMap(): void {
     // --------------------------------------------------
     // Event listeners
     // --------------------------------------------------
-    map1.addListener('drag', () => updateOtherMap(map1, map2));
-    map2.addListener('drag', () => updateOtherMap(map2, map1));
-    map1.addListener('zoom_changed', () => updateOtherMap(map1, map2));
-    map2.addListener('zoom_changed', () => updateOtherMap(map2, map1));
+    // Sync map1 → map2 when user interacts with map1
+    const syncMap1ToMap2 = () => {
+        if (isUpdatingMap1) return;
+        isUpdatingMap2 = true;
+        updateOtherMap(map1, map2);
+        isUpdatingMap2 = false;
+    };
+
+    // Sync map2 → map1 when user interacts with map2
+    const syncMap2ToMap1 = () => {
+        if (isUpdatingMap2) return;
+        isUpdatingMap1 = true;
+        updateOtherMap(map2, map1);
+        isUpdatingMap1 = false;
+    };
+
+    // Listen to drag (mouse panning), zoom, and center changes (pan controls)
+    map1.addListener('drag', syncMap1ToMap2);
+    map1.addListener('zoom_changed', syncMap1ToMap2);
+    map1.addListener('center_changed', syncMap1ToMap2);
+
+    map2.addListener('drag', syncMap2ToMap1);
+    map2.addListener('zoom_changed', syncMap2ToMap1);
+    map2.addListener('center_changed', syncMap2ToMap1);
 
     // Listen for the event fired when the user selects a prediction and retrieve more details for that place
     searchBox.addListener('places_changed', () => {
