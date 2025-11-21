@@ -13,7 +13,7 @@ export default function App() {
   const map2Ref = useRef<HTMLDivElement>(null);
   const input1Ref = useRef<HTMLInputElement>(null);
   const input2Ref = useRef<HTMLInputElement>(null);
-  
+
   useEffect(() => {
     loadGoogleMaps().then(() => {
       initMap();
@@ -59,11 +59,15 @@ export default function App() {
       zoom: DEFAULT_ZOOM,
       center: coordinates1,
       mapId: 'map1',
-      // Top map: zoom hidden by default, shows in fullscreen
+      // Top map: controls hidden by default, shows in fullscreen
       disableDefaultUI: true,
       zoomControl: false,
-      mapTypeControl: true,
-      fullscreenControl: true
+      mapTypeControl: false,
+      fullscreenControl: true,
+      mapTypeControlOptions: {
+        position: google.maps.ControlPosition.LEFT_TOP,
+        style: google.maps.MapTypeControlStyle.DROPDOWN_MENU
+      }
     });
     // Create initial marker at starting location
     let marker1 = new google.maps.marker.AdvancedMarkerElement({
@@ -74,11 +78,15 @@ export default function App() {
       zoom: DEFAULT_ZOOM,
       center: coordinates2,
       mapId: 'map2',
-      // Bottom map: map type hidden by default, shows in fullscreen
+      // Bottom map: search at bottom left, map type at top right
       disableDefaultUI: true,
       zoomControl: true,
-      mapTypeControl: false,
-      fullscreenControl: true
+      mapTypeControl: true,
+      fullscreenControl: true,
+      mapTypeControlOptions: {
+        position: google.maps.ControlPosition.LEFT_TOP,
+        style: google.maps.MapTypeControlStyle.DROPDOWN_MENU
+      }
     });
     // Create initial marker at antipode location
     let marker2 = new google.maps.marker.AdvancedMarkerElement({
@@ -89,9 +97,9 @@ export default function App() {
     const searchBox1 = new google.maps.places.SearchBox(input1);
     const searchBox2 = new google.maps.places.SearchBox(input2);
 
-    // Add search box 1 to map1 (always visible)
-    map1.controls[google.maps.ControlPosition.TOP_LEFT].push(input1);
-    // Search box 2 is added to map2 only when fullscreen (handled in event listener)
+    // Add search box 2 to map2 by default at left bottom
+    map2.controls[google.maps.ControlPosition.LEFT_BOTTOM].push(input2);
+    // Search box 1 is added to map1 only when fullscreen (handled in event listener)
 
     // --------------------------------------------------
     // Event listeners
@@ -153,8 +161,8 @@ export default function App() {
     const createBoundsChangedListener = (
       map: google.maps.Map,
       searchBox: google.maps.places.SearchBox,
-      controlToToggle: 'zoomControl' | 'mapTypeControl',
-      searchInput?: HTMLInputElement
+      isMap1: boolean,
+      searchInput: HTMLInputElement
     ) => {
       return () => {
         const mapDiv = map.getDiv().firstChild as HTMLElement;
@@ -162,12 +170,15 @@ export default function App() {
           const isFullscreen = mapDiv.clientHeight === window.innerHeight &&
             mapDiv.clientWidth === window.innerWidth;
 
-          // Toggle the specified control based on fullscreen state
-          map.setOptions({ [controlToToggle]: isFullscreen });
+          if (isMap1) {
+            // Map1: Show all controls when fullscreen
+            map.setOptions({
+              zoomControl: isFullscreen,
+              mapTypeControl: isFullscreen
+            });
 
-          // Show/hide search input if provided (for map2)
-          if (searchInput) {
-            const currentControls = map.controls[google.maps.ControlPosition.TOP_LEFT];
+            // Add/remove search box for map1 based on fullscreen
+            const currentControls = map.controls[google.maps.ControlPosition.LEFT_BOTTOM];
             if (isFullscreen) {
               if (currentControls.getArray().indexOf(searchInput) === -1) {
                 currentControls.push(searchInput);
@@ -179,6 +190,7 @@ export default function App() {
               }
             }
           }
+          // Map2 always has controls visible, no need to toggle
 
           // Move autocomplete dropdown into/out of fullscreen container
           if (isFullscreen) {
@@ -197,8 +209,8 @@ export default function App() {
     };
 
     // Detect fullscreen changes and update SearchBox bounds for both maps
-    map1.addListener('bounds_changed', createBoundsChangedListener(map1, searchBox1, 'zoomControl'));
-    map2.addListener('bounds_changed', createBoundsChangedListener(map2, searchBox2, 'mapTypeControl', input2));
+    map1.addListener('bounds_changed', createBoundsChangedListener(map1, searchBox1, true, input1));
+    map2.addListener('bounds_changed', createBoundsChangedListener(map2, searchBox2, false, input2));
 
     // Sync map type (satellite/map/terrain) bidirectionally
     // Both maps have the control (visible when fullscreen or based on position)
@@ -297,100 +309,72 @@ export default function App() {
   }
 
   return (
-    <>
-      <style>{`
-        body {
-          margin: 0;
-          padding: 0;
-        }
+    <div className="h-screen w-screen bg-background text-foreground flex flex-col overflow-hidden relative">
+      <header className="absolute top-8 left-1/2 -translate-x-1/2 px-4 py-8" style={{ zIndex: 20 }}>
+        <div className="inline-flex items-center gap-4">
+          <h1 className="font-bold tracking-tight whitespace-nowrap" style={{
+            fontFamily: "'Archivo Black', sans-serif",
+            color: '#0D5F7F',
+            fontSize: '2.5rem',
+            WebkitTextStroke: '1px white',
+            textShadow: '0 2px 8px rgba(0, 0, 0, 0.5), 0 0 8px rgba(13, 95, 127, 0.6)',
+            filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))'
+          }}>
+            Find My Antipode
+          </h1>
+          <img
+            src="/antipodes.png"
+            alt="Antipodes Logo"
+            style={{
+              height: '75px',
+              width: '75px',
+              paddingTop: '8px',
+              filter: 'drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5))'
+            }}
+          />
+        </div>
+      </header>
 
-        #map1,
-        #map2 {
-          height: 50vh;
-          width: 100%;
-        }
+      <main className="w-full h-full">
+        {/* Search boxes for each map */}
+        <input
+          id="pac-input-1"
+          ref={input1Ref}
+          className="controls"
+          type="text"
+          placeholder="Search Box"
+        />
+        <input
+          id="pac-input-2"
+          ref={input2Ref}
+          className="controls"
+          type="text"
+          placeholder="Search Box"
+        />
 
-        /* Position search inputs off-screen initially - Google Maps will position them when added to controls */
-        #pac-input-1,
-        #pac-input-2 {
-          position: absolute;
-          left: -9999px;
-        }
+        {/* Map containers */}
+        <div className="map-wrapper">
+          <div id="map1" ref={map1Ref}></div>
+        </div>
 
-        /* Style search boxes to match Google Maps controls */
-        .controls {
-          background-color: #fff;
-          border: 0;
-          border-radius: 2px;
-          box-shadow: 0 1px 4px -1px rgba(0, 0, 0, 0.3);
-          margin: 10px;
-          padding: 0 11px 0 13px;
-          height: 40px;
-          font-family: Roboto, Arial, sans-serif;
-          font-size: 15px;
-          font-weight: 300;
-          outline: none;
-          text-overflow: ellipsis;
-          width: 250px;
-        }
+        <div style={{
+          backgroundColor: '#0D5F7F',
+          color: 'white',
+          padding: '0 4px',
+          textAlign: 'center',
+          fontSize: '14px',
+          fontWeight: '400',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden'
+        }}>
+          antipode (noun): the point on the planet where you'd end up if you dug a tunnel straight through the Earth
+        </div>
 
-        .controls:focus {
-          border-color: #4d90fe;
-          box-shadow: 0 1px 4px -1px rgba(0, 0, 0, 0.3), 0 0 0 2px rgba(77, 144, 254, 0.2);
-        }
-
-        /* Ensure autocomplete dropdown appears above fullscreen maps */
-        .pac-container {
-          z-index: 10000 !important;
-          background-color: #fff;
-        }
-
-        /* Hide "powered by Google" logo in autocomplete */
-        .pac-logo::after,
-        .hdpi.pac-logo::after {
-          display: none !important;
-        }
-
-        /* Make autocomplete dropdown visible in fullscreen mode */
-        #map1 .pac-container,
-        #map2 .pac-container {
-          position: absolute !important;
-          z-index: 2147483647 !important;
-          background-color: #fff !important;
-          display: block !important;
-        }
-
-        :fullscreen .pac-container,
-        :-webkit-full-screen .pac-container,
-        :-moz-full-screen .pac-container,
-        :-ms-fullscreen .pac-container {
-          z-index: 2147483647 !important;
-          position: absolute !important;
-          background-color: #fff !important;
-          display: block !important;
-        }
-      `}</style>
-      
-      {/* Search boxes for each map */}
-      <input 
-        id="pac-input-1" 
-        ref={input1Ref}
-        className="controls" 
-        type="text" 
-        placeholder="Search Box"
-      />
-      <input 
-        id="pac-input-2" 
-        ref={input2Ref}
-        className="controls" 
-        type="text" 
-        placeholder="Search Box"
-      />
-      
-      {/* Create divs to hold the maps */}
-      <div id="map1" ref={map1Ref}></div>
-      <div id="map2" ref={map2Ref}></div>
-    </>
+        <div className="map-wrapper">
+          <div id="map2" ref={map2Ref}></div>
+        </div>
+      </main>
+    </div>
   );
 }
 
